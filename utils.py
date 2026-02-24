@@ -43,3 +43,21 @@ def col2im(cols, x_shape, kernel_height, kernel_width, padding=1, stride=1):
     if padding == 0:
         return x_padded
     return x_padded[:, :, padding:-padding, padding:-padding]
+
+# Saving/Loading
+
+def extract_state(model):
+    state = []
+    for layer in model.get_layer():
+        if hasattr(layer, 'get_params'):
+            layer_state = {}
+            for p, _ in layer.get_params():
+                layer_state[p] = cp.asnumpy(getattr(layer, p))
+            state.append(layer_state)
+    return state
+
+def apply_state(model, state):
+    for i, layer in enumerate(model.get_layer()):
+        if hasattr(layer, 'get_params'):
+            for p, _ in layer.get_params():
+                setattr(layer, p, cp.array(state[i][p]))
