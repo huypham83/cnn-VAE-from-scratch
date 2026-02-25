@@ -15,7 +15,7 @@ lr = 0.0002
 epochs = 50
 train = False
 
-file_name = 'Weight/gan_weights.pkl'
+file_name = 'weight/gan_weights.pkl'
 generator = Generator(latent_dim=latent_dim, image_height=32, image_width=32, image_channel=3)
 discriminator = Discriminator(image_height=32, image_width=32, image_channel=3)
 g_optimizer = Adam(generator.get_layer(), lr=lr, beta1=0.5, beta2=0.999)

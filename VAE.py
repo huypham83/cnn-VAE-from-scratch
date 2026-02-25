@@ -17,7 +17,7 @@ lr = 0.005
 epochs = 100
 train = False
 
-file_name = 'Weight/vae_weights.pkl'
+file_name = 'weight/vae_weights.pkl'
 model = VariationalAutoEncoder(latent_dim, image_height=32, image_width=32, image_channel=3)
 optimizer = SGD(model.get_layer(), lr=0.005)
 

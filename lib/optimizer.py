@@ -14,6 +14,12 @@ class SGD():
                     grad = getattr(layer, dp)
 
                     param -= self.lr * grad
+    
+    def save_state(self):
+        return None
+    
+    def load_state(self):
+        return None
 
 class Momentum():
     def __init__(self, layers, lr=0.0002, beta=0.9):
