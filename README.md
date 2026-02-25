@@ -31,11 +31,14 @@ This project does have the help of Gemini, but I still wrote most of the code my
 * `vae_weights.pkl` / `gan_weights.pkl`: Pre-trained model states so you don't need to train the model yourself to see the result.
 
 ## Results
+
 * **VAE:**
-<img width="1218" height="985" alt="image" src="https://github.com/user-attachments/assets/db2b76d1-7ca3-4822-9b96-65fb3d23b85a" />
-* **GAN:**
   
-![Screenshot-from-2026-02-24-09-39-50.png](https://postimg.cc/fJVs5wP0)
+<img width="1218" height="985" alt="image" src="https://github.com/user-attachments/assets/db2b76d1-7ca3-4822-9b96-65fb3d23b85a" />
+
+* **GAN:**
+
+[![Screenshot-from-2026-02-24-09-39-50.png](https://i.postimg.cc/Pr4qXJzK/Screenshot-from-2026-02-24-09-39-50.png)](https://postimg.cc/fJVs5wP0)
 
 Yeah these looks like abstract art with striping on the GAN model, not too proud of it but the models did work.
 ## How to Run it
@@ -45,16 +48,19 @@ Yeah these looks like abstract art with striping on the GAN model, not too proud
 1. **Install dependencies:**
    ```bash
    pip install cupy-cuda11x numpy pandas matplotlib
+   ```
 3. **Download the CIFAR-10 dataset:**
    Run these commands in your terminal to fetch and extract the official Python dataset directly into the project folder:
-   ```Bash
+   ```bash
    wget [https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz](https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz)
    tar -xzf cifar-10-python.tar.gz
+   ```
 4. **Run the training loops:**
-   ```Bash
+   ```bash
    python3 VAE.py
    # OR
    python3 GAN.py
+   ```
    
 ## Log
 * 21/2/2026: Oh the VAE worked great, I should upload this to GitHub and look for a new model.
