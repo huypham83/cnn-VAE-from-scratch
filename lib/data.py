@@ -64,3 +64,27 @@ class CIFAR10DataLoader():
 
             yield batch_x, batch_x
             
+class TextDataLoader():
+    def __init__(self, file_path, seq_len, batch_size):
+        self.seq_len = seq_len
+        self.batch_size = batch_size
+        self.vocab_size = 256
+
+        with open(file_path, 'rb') as f:
+            raw_text = f.read()
+            
+        self.tensor = np.frombuffer(raw_text, dtype=np.uint8)
+        del raw_text
+
+        num_batch = len(self.tensor) // (batch_size * seq_len)
+        self.tensor = self.tensor[:num_batch * batch_size * seq_len]
+        self.data = self.tensor.reshape(batch_size, -1)
+
+    def next_batch(self):
+        for n in range(0, self.data.shape[1] - 1, self.seq_len):
+            x = self.data[:, n : n + self.seq_len]
+            y = self.data[:, n + 1: n + self.seq_len + 1]
+
+            if y.shape == x.shape and x.shape[1] == self.seq_len:
+                yield x, y
+
