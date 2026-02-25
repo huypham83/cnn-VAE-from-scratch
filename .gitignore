@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*~
+
+.git/
+pics/
+trained/
+dataset/
+*.tar.gz
+
+venv/
+env/
+
+.vscode/
+.DS_Store
