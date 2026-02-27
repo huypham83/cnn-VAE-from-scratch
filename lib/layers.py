@@ -1,6 +1,6 @@
 import cupy as cp
 import numpy as np
-from utils import *
+from lib.utils import *
 
 class Activation():
     def __init__(self, func=None):
@@ -52,6 +52,9 @@ class Activation():
         return x
     def _id_backward(self, out_grad):
         return out_grad
+    
+    def get_params(self):
+        return []
 
 class Flatten():
     def forward(self, x):
@@ -60,6 +63,9 @@ class Flatten():
 
     def backward(self, out_grad):
         return out_grad.reshape(self.x_shape)
+    
+    def get_params(self):
+        return []
 
 class Reshape():
     def __init__(self, shape):
@@ -71,12 +77,18 @@ class Reshape():
 
     def backward(self, out_grad):
         return out_grad.reshape(self.N, -1)
+    
+    def get_params(self):
+        return []
 
 class MSELoss():
     def forward(self, y_pred, y_true):
         return cp.mean((y_pred - y_true) ** 2)
     def backward(self, y_pred, y_true):
         return 2 * (y_pred - y_true) / y_pred.shape[0]
+    
+    def get_params(self):
+        return []
 
 class VAELoss():
     def forward(self, y_pred, y_true, mean, log_var):
@@ -90,6 +102,9 @@ class VAELoss():
         kl_grad_mean = mean / batch_size
         kl_grad_var = -0.5 * (1 - cp.exp(log_var)) / batch_size
         return mse_grad, kl_grad_mean, kl_grad_var
+    
+    def get_params(self):
+        return []
     
 class BCELoss():
     def __init__(self):
@@ -105,6 +120,9 @@ class BCELoss():
         
         grad = -(y_true / y_pred) + ((1 - y_true) / (1 - y_pred))
         return grad / batch_size
+    
+    def get_params(self):
+        return []
     
 class CrossEntropyLoss():
     def forward(self, logits, targets):
@@ -131,6 +149,9 @@ class CrossEntropyLoss():
         
         grad /= (batch_size * seq_len)
         return grad.reshape(batch_size, seq_len, vocab_size)
+    
+    def get_params(self):
+        return []
     
 class Embedding():
     def __init__(self, vocab_size, embed_dim, max_len, positional = False):
@@ -177,6 +198,117 @@ class SoftMax():
         u = out_grad * self.output
         v = self.output * cp.sum(u, axis=-1, keepdims=True)
         return u - v
+    
+    def get_params(self):
+        return []
+    
+class NormalizationBase():
+    def __init__(self, p_shape, axis):
+        self.eps = 1e-7
+        self.p_shape = p_shape
+        self.axis = axis
+
+        self.gamma = cp.ones(p_shape)
+        self.beta = cp.zeros(p_shape)
+
+        self.dgamma = cp.zeros_like(self.gamma)
+        self.dbeta = cp.zeros_like(self.beta)
+
+    def _shared_forward(self, x, mean, var):
+        self.x_norm = (x - mean) / cp.sqrt(var + self.eps)
+        self.var = var
+        return self.gamma * self.x_norm + self.beta
+    
+    def _shared_backward(self, out_grad):
+        #number of elements that get norm-ed
+        m = cp.prod(cp.array([out_grad.shape[i] for i in self.axis]))
+
+        sum_axis = tuple(i for i, dim in enumerate(self.p_shape) if dim == 1)
+
+        self.dgamma[:] = cp.sum(out_grad * self.x_norm, axis=sum_axis, keepdims=True).reshape(self.p_shape)
+        self.dbeta[:] = cp.sum(out_grad, axis=sum_axis, keepdims=True).reshape(self.p_shape)
+
+        dx_norm = out_grad *  self.gamma
+        sum_dx_norm = cp.sum(dx_norm, axis=self.axis, keepdims=True)
+        sum_dx_norm_x_norm = cp.sum(dx_norm * self.x_norm, axis=self.axis, keepdims=True)
+        
+        inp_grad = (1.0 / m) / cp.sqrt(self.var + self.eps) * (m * dx_norm - sum_dx_norm - self.x_norm * sum_dx_norm_x_norm)
+        return inp_grad
+    
+    def get_params(self):
+        return [('gamma', 'dgamma'), ('beta', 'dbeta')]
+    
+class BatchNormalization2D(NormalizationBase):
+    def __init__(self, channels, momentum=0.9):
+        super().__init__(p_shape=(1, channels, 1, 1), axis=(0, 2, 3))
+        self.momentum = momentum
+        self.l_mean = cp.zeros((1, channels, 1, 1))
+        self.l_var = cp.ones((1, channels, 1, 1))
+    
+    def forward(self, x, is_training=True):
+        if is_training:
+            mean = cp.mean(x, axis=self.axis, keepdims=True)
+            var = cp.var(x, axis=self.axis, keepdims=True)
+
+            self.l_mean =  self.momentum * self.l_mean + (1 - self.momentum) * mean
+            self.l_var =  self.momentum * self.l_var + (1 - self.momentum) * var
+
+            return self._shared_forward(x, mean, var)
+        else:
+            return self._shared_forward(x, self.l_mean, self.l_var)
+        
+    def backward(self, out_grad):
+        return self._shared_backward(out_grad)
+
+class UpSample2D():
+    def __init__(self, scale=1):
+        self.scale = scale
+
+    def forward(self, x):
+        self.x_shape = x.shape
+
+        out = cp.repeat(cp.repeat(x, self.scale, axis=-1), self.scale, axis=-2)
+        return out
+    
+    def backward(self, out_grad):
+        N, C, H, W = self.x_shape
+        
+        grad = out_grad.reshape(N, C, H, self.scale, W, self.scale)
+        
+        dx = cp.sum(grad, axis=(3, 5))
+        return dx
+    
+    def get_params(self):
+        return []
+    
+class MaxPooling2D():
+    def __init__(self, scale=1):
+        self.scale = scale
+
+    def forward(self, x):
+        self.x_shape = x.shape
+        N, C, H, W = x.shape
+        
+        x_reshaped = x.reshape(N, C, H // self.scale, self.scale, W // self.scale, self.scale)
+        
+        self.out = cp.max(x_reshaped, axis=(3, 5))
+        
+        out = self.out.reshape(N, C, H // self.scale, 1, W // self.scale, 1)
+        self.mask = (x_reshaped == out)
+        
+        return self.out
+
+    def backward(self, out_grad):
+        N, C, H, W = self.x_shape
+        
+        grad_expanded = out_grad.reshape(N, C, H // self.scale, 1, W // self.scale, 1)
+        
+        dx = self.mask * grad_expanded
+        
+        return dx.reshape(N, C, H, W)
+        
+    def get_params(self):
+        return []
 
 class Dense():
     def __init__(self, input_size, output_size, activation = None):

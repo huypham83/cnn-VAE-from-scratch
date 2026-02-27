@@ -1,5 +1,6 @@
 import cupy as cp
-from layers import Dense, Conv2D, TransposeConv2D, Flatten, Reshape
+from lib.layers import *
+
 class AutoEncoder():
     def __init__(self, input_dim, hidden_dim, latent_dim):
         self.enc1 = Dense(input_dim, hidden_dim, activation='relu')
@@ -99,97 +100,99 @@ class VariationalAutoEncoder():
     def get_layer(self):
         return [self.conv1, self.conv2, self.enc_mean, self.enc_var, self.dec, self.tconv1, self.tconv2]
     
+# Dead code from above, dont touch 
+
+class SequentialBase():
+    def __init__(self, *layers):
+        self.layers = layers
+
+    def forward(self, x, is_training=True):
+        out = x
+        for layer in self.layers:
+            if type(layer).__name__ == 'BatchNormalization2D':
+                out = layer.forward(out, is_training=is_training)
+            else:
+                out = layer.forward(out)
+        return out
+    
+    def backward(self, out_grad):
+        grad = out_grad
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad)
+        return grad
+    
+    def get_layer(self):
+        return list(self.layers)
+
 # GAN starts here
 
 class Generator():
-    def __init__(self, latent_dim, image_height, image_width, image_channel):
+    def __init__(self, latent_dim, image_height=28, image_width=28, image_channel=1):
         self.H = image_height
         self.W = image_width
         self.C = image_channel
         self.latent_dim = latent_dim
         
-        c_H = self.H // 8
-        c_W = self.W // 8
-        c_C = 32
+        c_C = 64
+        self.model = SequentialBase(
+            Dense(latent_dim, c_C * 7 * 7),
+            Reshape((c_C, 7, 7)),
+            BatchNormalization2D(c_C),
+            Activation('relu'),
 
-        self.dense = Dense(latent_dim, c_C * c_H * c_W, activation='relu')
-        self.reshape = Reshape((c_C, c_H, c_W))
-        self.tconv1 = TransposeConv2D(in_channel=c_C, out_channel=16, 
-                                      kernel_height=4, kernel_width=4, 
-                                      stride=2, padding=1, activation='relu')
-        self.tconv2 = TransposeConv2D(in_channel=16, out_channel=8, 
-                                      kernel_height=4, kernel_width=4, 
-                                      stride=2, padding=1, activation='relu')
-        self.tconv3 = TransposeConv2D(in_channel=8, out_channel=self.C, 
-                                      kernel_height=4, kernel_width=4, 
-                                      stride=2, padding=1, activation='sigmoid')
-        self.f = Flatten()
+            UpSample2D(scale=2),
+            Conv2D(in_channel=c_C, out_channel=32, kernel_height=3, kernel_width=3),
+            BatchNormalization2D(32),
+            Activation('relu'),
+
+            UpSample2D(scale=2),
+            Conv2D(in_channel=32, out_channel=16, kernel_height=3, kernel_width=3),
+            BatchNormalization2D(16),
+            Activation('relu'),
+            
+            Conv2D(in_channel=16, out_channel=self.C, kernel_height=3, kernel_width=3, activation='sigmoid'),
+            Flatten()
+        )
 
     def sampling(self, batch_size):
         return cp.random.normal(0, 1, (batch_size, self.latent_dim))
     
-    def forward(self, batch_size):
+    def forward(self, batch_size, is_training=True):
         z = self.sampling(batch_size)
-        out = self.dense.forward(z)
-        out = self.reshape.forward(out)
-        out = self.tconv1.forward(out)
-        out = self.tconv2.forward(out)
-        out = self.tconv3.forward(out)
-        out = self.f.forward(out)
-        return out
+        return self.model.forward(z, is_training)
     
     def backward(self, out_grad):
-        grad = self.f.backward(out_grad)
-        grad = self.tconv3.backward(grad)
-        grad = self.tconv2.backward(grad)
-        grad = self.tconv1.backward(grad)
-        grad = self.reshape.backward(grad)
-        grad = self.dense.backward(grad)
-        return grad
+        return self.model.backward(out_grad)
     
     def get_layer(self):
-        return [self.dense, self.tconv1, self.tconv2, self.tconv3]
+        return self.model.get_layer()
 
 class Discriminator():
-    def __init__(self, image_height, image_width, image_channel):
+    def __init__(self, image_height=28, image_width=28, image_channel=1):
         self.H = image_height
         self.W = image_width
         self.C = image_channel
         
-        c_H = self.H // 8
-        c_W = self.W // 8
-        c_C = 32
+        self.model = SequentialBase(
+            Reshape((self.C, self.H, self.W)),
+            
+            Conv2D(in_channel=self.C, out_channel=16, kernel_height=3, kernel_width=3, stride=1),
+            Activation('leaky_relu'),
+            MaxPooling2D(scale=2),
+            
+            Conv2D(in_channel=16, out_channel=32, kernel_height=3, kernel_width=3, stride=1),
+            Activation('leaky_relu'),
+            MaxPooling2D(scale=2),
+            
+            Flatten(),
+            Dense(32 * 7 * 7, 1, activation='sigmoid')
+        )
 
-        self.reshape = Reshape((self.C, self.H, self.W))
-        self.conv1 = Conv2D(in_channel=self.C, out_channel=8, 
-                            kernel_height=3, kernel_width=3, 
-                            stride=2, activation='leaky_relu')
-        self.conv2 = Conv2D(in_channel=8, out_channel=16, 
-                            kernel_height=3, kernel_width=3, 
-                            stride=2, activation='leaky_relu')
-        self.conv3 = Conv2D(in_channel=16, out_channel=c_C, 
-                            kernel_height=3, kernel_width=3, 
-                            stride=2, activation='leaky_relu')
-        self.f = Flatten()
-        self.dense = Dense(c_H * c_W * c_C, 1, activation='sigmoid')
-
-    def forward(self, input):
-        out = self.reshape.forward(input)
-        out = self.conv1.forward(out)
-        out = self.conv2.forward(out)
-        out = self.conv3.forward(out)
-        out = self.f.forward(out)
-        out = self.dense.forward(out)
-        return out
+    def forward(self, input, is_training=True):
+        return self.model.forward(input, is_training=is_training)
     
     def backward(self, out_grad):
-        grad = self.dense.backward(out_grad)
-        grad = self.f.backward(grad)
-        grad = self.conv3.backward(grad)
-        grad = self.conv2.backward(grad)
-        grad = self.conv1.backward(grad)
-        grad = self.reshape.backward(grad)
-        return grad
+        return self.model.backward(out_grad)
     
     def get_layer(self):
-        return [self.dense, self.conv1, self.conv2, self.conv3]
+        return self.model.get_layer()

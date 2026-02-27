@@ -4,8 +4,9 @@ import pandas as pd
 import os
 import pickle
 
-class DataLoader():
+class EMNISTDataLoader():
     def __init__(self, file_path, batch_size):
+        file_path = os.path.join(file_path, f'emnist-balanced-train.csv')
         self.batch_size = batch_size
         df = pd.read_csv(file_path, header=None, dtype=np.float32)
         print('--Done Loading--')
