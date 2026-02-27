@@ -11,7 +11,6 @@ from lib.utils import *
 
 latent_dim = 128
 batch_size = 32
-lr = 0.0002
 epochs = 50
 train = False
 
@@ -19,8 +18,8 @@ file_name = 'weight/gan_weights.pkl'
 os.makedirs(os.path.dirname(file_name), exist_ok=True)
 generator = Generator(latent_dim=latent_dim, image_height=28, image_width=28, image_channel=1)
 discriminator = Discriminator(image_height=28, image_width=28, image_channel=1)
-g_optimizer = Adam(generator.get_layer(), lr=lr, beta1=0.5, beta2=0.999)
-d_optimizer = Adam(discriminator.get_layer(), lr=lr, beta1=0.5, beta2=0.999)
+g_optimizer = Adam(generator.get_layer(), lr=0.0002, beta1=0.5, beta2=0.999)
+d_optimizer = Adam(discriminator.get_layer(), lr=0.00005, beta1=0.5, beta2=0.999)
 
 note = """
     Generator (Lightweight): 
@@ -56,6 +55,8 @@ else:
     start_epoch = 0
     print("No existing weights found. Training from scratch...")
     train = True
+
+trained = start_epoch
 
 if train == True:
     print(f"Starting training sequence...")
@@ -118,11 +119,12 @@ if train == True:
                 pickle.dump(model_state, f)
 
             print(f"Model weights are saved to {file_name}.")
+            trained = epoch
 
     print("Training complete")
 
 model_state = {
-    'epoch': epoch + 1,
+    'epoch': trained + 1,
     'architecture': note,
     'generator': extract_state(generator),
     'discriminator': extract_state(discriminator),
