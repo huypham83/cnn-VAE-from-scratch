@@ -53,6 +53,7 @@ if os.path.exists(file_name):
     print("Loaded model successfully!")
 
 else:
+    start_epoch = 0
     print("No existing weights found. Training from scratch...")
     train = True
 
