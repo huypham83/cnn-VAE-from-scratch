@@ -18,7 +18,7 @@ os.makedirs(os.path.dirname(file_name), exist_ok=True)
 generator = Generator(image_height=28, image_width=28, image_channel=1)
 discriminator = Discriminator(image_height=28, image_width=28, image_channel=1)
 g_optimizer = Adam(generator.get_layer(), lr=0.0002, beta1=0.5, beta2=0.999)
-d_optimizer = Adam(discriminator.get_layer(), lr=0.00005, beta1=0.5, beta2=0.999)
+d_optimizer = Adam(discriminator.get_layer(), lr=0.0002, beta1=0.5, beta2=0.999)
 
 note = """
     GAN - EMNIST
@@ -77,24 +77,30 @@ if train == True:
             fake_labels = cp.zeros((current_batch_size, 1))
 
             fakes = generator.forward(current_batch_size)
-            x = cp.vstack((x_batch, fakes))
-            y = cp.vstack((real_labels, fake_labels))
 
-            d_pred = discriminator.forward(x, is_training=True)
-            d_loss = loss_func.forward(d_pred, y)
-            
-            grad_combined = loss_func.backward(d_pred, y)
-            discriminator.backward(grad_combined)
+            # Train D with real
+            d_pred_real = discriminator.forward(x_batch)
+            d_loss_real = loss_func.forward(d_pred_real, real_labels)
+            grad = loss_func.backward(d_pred_real, real_labels)
+            discriminator.backward(grad)
             d_optimizer.step()
 
-            d_real_score = cp.mean(d_pred[:current_batch_size])
-            d_fake_score = cp.mean(d_pred[current_batch_size:])
-            d_loss_total += d_loss
+            # Train D with fake
+            fakes = generator.forward(current_batch_size)
+            d_pred_fake = discriminator.forward(fakes)
+            d_loss_fake = loss_func.forward(d_pred_fake, fake_labels)
+            grad = loss_func.backward(d_pred_fake, fake_labels)
+            discriminator.backward(grad)
+            d_optimizer.step()
+
+            d_real_score = cp.mean(d_pred_real)
+            d_fake_score = cp.mean(d_pred_fake)
+            d_loss_total += (d_loss_real + d_loss_fake) / 2
 
             # Train G
             new_fakes = generator.forward(current_batch_size)
             
-            d_pred_new = discriminator.forward(new_fakes)
+            d_pred_new = discriminator.forward(new_fakes, is_training=False)
             
             g_loss = loss_func.forward(d_pred_new, real_labels)
             g_loss_total += g_loss
