@@ -338,13 +338,15 @@ class Dense():
         return [('W', 'dW'), ('b', 'db')]
     
 class Conv2D():
-    def __init__(self, in_channel, out_channel, kernel_height, kernel_width, stride=1, activation = None):
+    def __init__(self, in_channel, out_channel, kernel_height, kernel_width, stride=1, padding = -1, activation = None):
         self.in_channel = in_channel
         self.out_channel = out_channel
         self.kernel_height = kernel_height
         self.kernel_width = kernel_width
         self.stride = stride
-        self.padding = max(kernel_height, kernel_width) // 2
+        if padding == -1:
+            self.padding = max(kernel_height, kernel_width) // 2
+        else: self.padding = padding
 
         std = 1 / cp.sqrt(in_channel * kernel_width * kernel_height)
         self.W = cp.random.uniform(-std, std, (out_channel, in_channel, kernel_height, kernel_width))

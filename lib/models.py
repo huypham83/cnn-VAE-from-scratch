@@ -127,30 +127,27 @@ class SequentialBase():
 # GAN starts here
 
 class Generator():
-    def __init__(self, latent_dim, image_height=28, image_width=28, image_channel=1):
+    def __init__(self, image_height=28, image_width=28, image_channel=1):
         self.H = image_height
         self.W = image_width
         self.C = image_channel
-        self.latent_dim = latent_dim
+        self.latent_dim = 128
         
-        c_C = 64
         self.model = SequentialBase(
-            Dense(latent_dim, c_C * 7 * 7),
-            Reshape((c_C, 7, 7)),
-            BatchNormalization2D(c_C),
+            Reshape((128, 1, 1)),
+            TransposeConv2D(in_channel=128, out_channel=256, kernel_height=4, kernel_width=4, stride=1, padding=0),
+            BatchNormalization2D(256),
             Activation('relu'),
 
-            UpSample2D(scale=2),
-            Conv2D(in_channel=c_C, out_channel=32, kernel_height=3, kernel_width=3),
-            BatchNormalization2D(32),
+            TransposeConv2D(in_channel=256, out_channel=128, kernel_height=3, kernel_width=3, stride=2, padding=1),
+            BatchNormalization2D(128),
             Activation('relu'),
 
-            UpSample2D(scale=2),
-            Conv2D(in_channel=32, out_channel=16, kernel_height=3, kernel_width=3),
-            BatchNormalization2D(16),
+            TransposeConv2D(in_channel=128, out_channel=64, kernel_height=4, kernel_width=4, stride=2, padding=1),
+            BatchNormalization2D(64),
             Activation('relu'),
             
-            Conv2D(in_channel=16, out_channel=self.C, kernel_height=3, kernel_width=3, activation='sigmoid'),
+            TransposeConv2D(in_channel=64, out_channel=self.C, kernel_height=4, kernel_width=4, stride=2, padding=1, activation='tanh'),
             Flatten()
         )
 
@@ -175,17 +172,20 @@ class Discriminator():
         
         self.model = SequentialBase(
             Reshape((self.C, self.H, self.W)),
-            
-            Conv2D(in_channel=self.C, out_channel=16, kernel_height=3, kernel_width=3, stride=1),
+            Conv2D(in_channel=self.C, out_channel=64, kernel_height=4, kernel_width=4, stride=2, padding=1),
+            BatchNormalization2D(64),
             Activation('leaky_relu'),
-            MaxPooling2D(scale=2),
-            
-            Conv2D(in_channel=16, out_channel=32, kernel_height=3, kernel_width=3, stride=1),
+
+            Conv2D(in_channel=64, out_channel=128, kernel_height=4, kernel_width=4, stride=2, padding=1),
+            BatchNormalization2D(128),
             Activation('leaky_relu'),
-            MaxPooling2D(scale=2),
-            
-            Flatten(),
-            Dense(32 * 7 * 7, 1, activation='sigmoid')
+
+            Conv2D(in_channel=128, out_channel=256, kernel_height=3, kernel_width=3, stride=2, padding=1),
+            BatchNormalization2D(256),
+            Activation('leaky_relu'),
+
+            Conv2D(in_channel=256, out_channel=1, kernel_height=4, kernel_width=4, stride=1, padding=0, activation='sigmoid'),
+            Flatten()
         )
 
     def forward(self, input, is_training=True):

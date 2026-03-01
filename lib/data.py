@@ -13,7 +13,7 @@ class EMNISTDataLoader():
         data = df.values
         self.labels = data[:, 0]
         self.pixels = data[:, 1:]
-        self.pixels /= 255.0
+        self.pixels = (self.pixels - 127.5) / 127.5
         self.data = cp.array(self.pixels)
 
     def next_batch(self):

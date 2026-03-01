@@ -9,30 +9,33 @@ from lib.data import EMNISTDataLoader
 from lib.optimizer import SGD, Momentum, Adam
 from lib.utils import *
 
-latent_dim = 128
 batch_size = 32
 epochs = 50
 train = False
 
 file_name = 'weight/gan_weights.pkl'
 os.makedirs(os.path.dirname(file_name), exist_ok=True)
-generator = Generator(latent_dim=latent_dim, image_height=28, image_width=28, image_channel=1)
+generator = Generator(image_height=28, image_width=28, image_channel=1)
 discriminator = Discriminator(image_height=28, image_width=28, image_channel=1)
 g_optimizer = Adam(generator.get_layer(), lr=0.0002, beta1=0.5, beta2=0.999)
 d_optimizer = Adam(discriminator.get_layer(), lr=0.00005, beta1=0.5, beta2=0.999)
 
 note = """
-    Generator (Lightweight): 
-    - Dense: 128 -> 64  * 7 * 7
-    - Reshape: 64, 7, 7 -> BN(64) -> ReLU
-    - UpSample(2) -> Conv2D(c=32) -> BN(32) -> ReLU
-    - UpSample(2) -> Conv2D(c=16) -> BN(16) -> ReLU
-    - Conv2D(c=1) -> Sigmoid -> Flatten
-    Discriminator (Lightweight):
-    - Reshape: 1, 28, 28
-    - Conv2D(c=16) -> lReLU -> MaxPool(2)
-    - Conv2D(c=32) -> lReLU -> MaxPool(2)
-    - Flatten -> Dense: 32 * 7 * 7 -> 1 -> Sigmoid
+    GAN - EMNIST
+    Generator:
+    - Input: Latent Vector (128,)
+    - Reshape: (128, 1, 1)
+    - Block 1: TransposeConv2D(128->256, K4, S1, P0) -> BN -> ReLU  => (256, 4, 4)
+    - Block 2: TransposeConv2D(256->128, K3, S2, P1) -> BN -> ReLU  => (128, 7, 7)
+    - Block 3: TransposeConv2D(128->64, K4, S2, P1) -> BN -> ReLU   => (64, 14, 14)
+    - Output: TransposeConv2D(64->1, K4, S2, P1) -> Tanh -> Flatten => (1, 28, 28)
+
+    Discriminator:
+    - Input: Image (1, 28, 28)
+    - Block 1: Conv2D(C:1->64, K4, S2, P1) -> BN -> lReLU        => (64, 14, 14)
+    - Block 2: Conv2D(C:64->128, K4, S2, P1) -> BN -> lReLU      => (128, 7, 7)
+    - Block 3: Conv2D(C:128->256, K3, S2, P1) -> BN -> lReLU     => (256, 4, 4)
+    - Output: Conv2D(C:256->1, K4, S1, P0) -> Sigmoid -> Flatten      => Probability (1,)
 """
 
 if os.path.exists(file_name):
@@ -142,6 +145,7 @@ cols = 5
 rows = (num_samples + cols - 1) // cols
 
 generated_images_np = cp.asnumpy(generator.forward(num_samples, is_training=False))
+generated_images_np = generated_images_np * 127.5 + 127.5
 
 plt.figure(figsize=(cols * 2.5, rows * 2.5))
 for i in range(num_samples):
